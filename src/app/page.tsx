@@ -15,28 +15,11 @@ export default function Home() {
     });
 
     const channel = pusher.subscribe("video-chat");
+
     channel.bind("offer", async (data: any) => {
       if (!peerConnection) {
-        const pc = new RTCPeerConnection();
+        const pc = createPeerConnection();
         setPeerConnection(pc);
-
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            sendSignal("ice-candidate", { candidate: event.candidate });
-          }
-        };
-
-        pc.ontrack = (event) => {
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = event.streams[0];
-          }
-        };
-
-        // Process queued ICE candidates
-        iceCandidateQueue.forEach(async (candidate) => {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        });
-        setIceCandidateQueue([]);
 
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
         const answer = await pc.createAnswer();
@@ -55,7 +38,6 @@ export default function Home() {
       if (peerConnection?.remoteDescription) {
         await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
       } else {
-        // Queue the ICE candidate if remote description is not set
         setIceCandidateQueue((prevQueue) => [...prevQueue, data.candidate]);
       }
     });
@@ -63,7 +45,25 @@ export default function Home() {
     return () => {
       pusher.unsubscribe("video-chat");
     };
-  }, [peerConnection, iceCandidateQueue]);
+  }, [peerConnection]);
+
+  const createPeerConnection = () => {
+    const pc = new RTCPeerConnection();
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendSignal("ice-candidate", { candidate: event.candidate });
+      }
+    };
+
+    pc.ontrack = (event) => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = event.streams[0];
+      }
+    };
+
+    return pc;
+  };
 
   const sendSignal = (type: string, payload: any) => {
     fetch("/api/signal", {
@@ -75,36 +75,20 @@ export default function Home() {
 
   const startCall = async () => {
     try {
-      const pc = new RTCPeerConnection();
+      const pc = createPeerConnection();
       setPeerConnection(pc);
 
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          sendSignal("ice-candidate", { candidate: event.candidate });
-        }
-      };
-
-      pc.ontrack = (event) => {
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
-        }
-      };
-
-      // Request access to the user's media devices
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
 
-      // Add tracks to the peer connection
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Set the local video stream
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
 
-      // Create and send an offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       sendSignal("offer", { offer });
