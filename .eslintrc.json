@@ -1,0 +1,12 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript"
+  ],
+  "ignorePatterns": [".next", "node_modules"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {},
+  "rules": {
+    "@typescript-eslint/no-unused-expressions": ["error", { "allowShortCircuit": true }]
+  }
+}
