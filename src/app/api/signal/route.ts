@@ -13,6 +13,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { type, ...data } = body;
 
-  await pusher.trigger("video-chat", type, data);
+  await pusher.trigger("webrtc-vchat", type, data);
   return NextResponse.json({ message: "ok" }, { status: 200 });
 }
