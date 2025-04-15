@@ -102,6 +102,10 @@ export default function Home() {
           // Add the track to the remote MediaStream
           remoteStream.addTrack(event.track);
           remoteVideoRef.current.srcObject = remoteStream; // Assign the MediaStream to the video element
+          remoteVideoRef.current.play().catch((error) => {
+            console.error("Error playing remote video stream:", error);
+            toast.error("Failed to play remote video stream.");
+          });
           console.log("Remote video and audio stream set successfully");
         } catch (error) {
           console.error("Error setting remote video stream:", error);
@@ -160,7 +164,7 @@ export default function Home() {
       setPeerConnection(pc);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { facingMode: "user" }, // Use "user" for front camera on mobile
         audio: true,
       });
 
@@ -170,6 +174,10 @@ export default function Home() {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.muted = true;
+        localVideoRef.current.play().catch((error) => {
+          console.error("Error playing local video stream:", error);
+          toast.error("Failed to play local video stream.");
+        });
       }
 
       const offer = await pc.createOffer();
