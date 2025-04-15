@@ -23,61 +23,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false); // Loader state
   const clientId = useRef(uuidv4());
 
-  useEffect(() => {
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-      forceTLS: true,
-    });
-
-    const channel = pusher.subscribe("webrtc-vchat");
-
-    channel.bind("offer", (data: any) => {
-      if (data.senderId === clientId.current || hasAcceptedOffer) return;
-      setIncomingOffers((prevOffers) => [...prevOffers, { senderId: data.senderId, offer: data.offer }]);
-    });
-
-    channel.bind("answer", async (data: any) => {
-      if (data.senderId === clientId.current) return;
-      if (peerConnection) {
-        try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-        } catch (error) {
-          toast.error("Failed to set remote description for answer.");
-        }
-      }
-    });
-
-    channel.bind("ice-candidate", async (data: any) => {
-      if (data.senderId === clientId.current) return;
-      if (peerConnection?.remoteDescription) {
-        try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (error) {
-          toast.error("Failed to add ICE candidate.");
-        }
-      } else {
-        setIceCandidateQueue((prevQueue) => [...prevQueue, data.candidate]);
-      }
-    });
-
-    channel.bind("user-left", (data: any) => {
-      if (data.senderId !== clientId.current && (peerConnection || hasAcceptedOffer)) {
-        setCallStatus(`User ${data.senderId} has left the call.`);
-        setTimeout(() => setCallStatus(null), 5000);
-      }
-    });
-
-    return () => {
-      pusher.unsubscribe("webrtc-vchat");
-    };
-  }, [peerConnection, hasAcceptedOffer]);
-
   const createPeerConnection = () => {
     const pc = new RTCPeerConnection({
       iceServers: [
-        {
-          urls: "stun:stun.l.google.com:19302", // Google's public STUN server
-        },
+        // {
+        //   urls: "stun:stun.l.google.com:19302", // Google's public STUN server
+        // },
         {
           urls: "turn:relay1.expressturn.com:3478", // Replace with your TURN server URL
           username: "ef78J8TSYT38TYRLSL", // Replace with your TURN server username
@@ -125,20 +76,10 @@ export default function Home() {
 
     pc.onconnectionstatechange = () => {
       console.log("Connection state changed:", pc.connectionState); // Debug log for connection state
-      if (pc.connectionState === "connected") {
-        console.log("Peer connection established");
-        iceCandidateQueue.forEach(async (candidate) => {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (error) {
-            console.error("Error adding ICE candidate from queue:", error);
-            toast.error("Failed to add ICE candidate from queue.");
-          }
-        });
-        setIceCandidateQueue([]); // Clear the queue after processing
-      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
         console.error("Peer connection failed or disconnected");
         toast.error("Peer connection failed or disconnected.");
+        sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
       }
     };
 
@@ -147,36 +88,74 @@ export default function Home() {
       if (pc.iceConnectionState === "failed") {
         console.error("ICE connection failed");
         toast.error("ICE connection failed. Please check your network or TURN server.");
+        sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
       }
     };
 
     return pc;
   };
 
-  const retryPlay = (videoElement: HTMLVideoElement) => {
-    const maxRetries = 5; // Maximum number of retry attempts
-    let retryCount = 0;
+  useEffect(() => {
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+      forceTLS: true,
+    });
 
-    const attemptPlay = () => {
-      if (retryCount < maxRetries) {
-        retryCount++;
-        videoElement
-          .play()
-          .then(() => {
-            console.log("Remote video stream playing after retry");
-            toast.success("Remote video stream successfully loaded.");
-          })
-          .catch((error) => {
-            console.error(`Retry ${retryCount} failed. Retrying...`, error);
-            setTimeout(attemptPlay, 1000); // Retry after 1 second
-          });
-      } else {
-        toast.error("Failed to play remote video stream after multiple attempts.");
+    const channel = pusher.subscribe("webrtc-vchat");
+
+    channel.bind("offer", (data: any) => {
+      if (data.senderId === clientId.current || hasAcceptedOffer) return;
+      setIncomingOffers((prevOffers) => [...prevOffers, { senderId: data.senderId, offer: data.offer }]);
+    });
+
+    channel.bind("answer", async (data: any) => {
+      if (data.senderId === clientId.current) return;
+      if (peerConnection) {
+        try {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        } catch (error) {
+          toast.error("Failed to set remote description for answer.");
+        }
       }
-    };
+    });
 
-    attemptPlay();
-  };
+    channel.bind("ice-candidate", async (data: any) => {
+      if (data.senderId === clientId.current) return;
+      if (peerConnection?.remoteDescription) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch (error) {
+          toast.error("Failed to add ICE candidate.");
+        }
+      } else {
+        setIceCandidateQueue((prevQueue) => [...prevQueue, data.candidate]);
+      }
+    });
+
+    channel.bind("user-left", (data: any) => {
+      if (data.senderId !== clientId.current) {
+        console.log(`User ${data.senderId} has left the call.`);
+        toast.info(`User ${data.senderId} has left the call.`);
+        setCallStatus(`User ${data.senderId} has left the call.`);
+        setTimeout(() => setCallStatus(null), 5000);
+        // Do not end the call for the current user
+      }
+    });
+
+    channel.bind("connection-failed", (data: any) => {
+      if (data.senderId !== clientId.current) {
+        console.error("Peer connection failed or disconnected by the other user.");
+        toast.error("The other user's connection failed or disconnected.");
+        setCallStatus("The other user's connection failed or disconnected.");
+        setTimeout(() => setCallStatus(null), 5000);
+        // Do not end the call for the current user
+      }
+    });
+
+    return () => {
+      pusher.unsubscribe("webrtc-vchat");
+    };
+  }, [peerConnection, hasAcceptedOffer]);
 
   const sendSignal = (type: string, payload: any) => {
     fetch("/api/signal", {
@@ -296,7 +275,7 @@ export default function Home() {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
-    sendSignal("user-left", { senderId: clientId.current });
+    sendSignal("user-left", { senderId: clientId.current }); // Notify the other user
     setHasAcceptedOffer(false);
     setCallStatus(null);
   };
