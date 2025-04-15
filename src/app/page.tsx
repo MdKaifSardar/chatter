@@ -112,29 +112,39 @@ export default function Home() {
       }
     };
 
+    // pc.onconnectionstatechange = () => {
+    //   console.log("Connection state changed:", pc.connectionState);
+    //   if (
+    //     pc.connectionState === "disconnected" ||
+    //     pc.connectionState === "failed"
+    //   ) {
+    //     console.error("Connection state is disconnected");
+    //   }
+    // };
+
+    // pc.oniceconnectionstatechange = () => {
+    //   console.log("ICE connection state changed:", pc.iceConnectionState);
+    //   if (pc.iceConnectionState === "disconnected") {
+    //     console.warn(
+    //       "ICE connection failed. Retrying ICE candidate exchange..."
+    //     );
+
+    //     // Attempt to restart ICE
+    //     pc.restartIce();
+    //     toast.info("Attempting to restart ICE...");
+    //   }
+    // };
+
     pc.onconnectionstatechange = () => {
-      console.log("Connection state changed:", pc.connectionState);
-      if (
-        pc.connectionState === "disconnected" ||
-        pc.connectionState === "failed"
-      ) {
-        console.error("Connection state is disconnected");
+      if (pc.connectionState === "connected") {
+        console.log("Peer connection established");
+        iceCandidateQueue.forEach(async (candidate) => {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        });
+        setIceCandidateQueue([]); // Clear the queue after processing
       }
     };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log("ICE connection state changed:", pc.iceConnectionState);
-      if (pc.iceConnectionState === "disconnected") {
-        console.warn(
-          "ICE connection failed. Retrying ICE candidate exchange..."
-        );
-
-        // Attempt to restart ICE
-        pc.restartIce();
-        toast.info("Attempting to restart ICE...");
-      }
-    };
-
+    
     return pc;
   };
 
