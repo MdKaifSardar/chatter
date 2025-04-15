@@ -62,7 +62,41 @@ export default function Home() {
       // }
     );
 
-    const remoteStream = new MediaStream(); // Create a MediaStream for remote tracks
+    // const remoteStream = new MediaStream(); // Create a MediaStream for remote tracks
+
+    // pc.onicecandidate = (event) => {
+    //   if (event.candidate) {
+    //     sendSignal("ice-candidate", { candidate: event.candidate });
+    //   }
+    // };
+
+    // pc.ontrack = (event) => {
+    //   console.log("Track received:", event.track.kind); // Debug log for received track type
+    //   if (remoteVideoRef.current) {
+    //     try {
+    //       // Add the track to the remote MediaStream
+    //       remoteStream.addTrack(event.track);
+
+    //       // Assign the MediaStream to the video element only once
+    //       if (remoteVideoRef.current.srcObject !== remoteStream) {
+    //         remoteVideoRef.current.srcObject = remoteStream;
+    //         console.log("Remote video and audio stream set successfully");
+    //       }
+
+    //       // Ensure the video plays
+    //       remoteVideoRef.current
+    //         .play()
+    //         .then(() => console.log("Remote video stream playing"))
+    //         .catch((error) => {
+    //           console.error("Error playing remote video stream:", error);
+    //           toast.error("Failed to play remote video stream.");
+    //         });
+    //     } catch (error) {
+    //       console.error("Error setting remote video stream:", error);
+    //       toast.error("Failed to display remote video stream.");
+    //     }
+    //   }
+    // };
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -71,30 +105,10 @@ export default function Home() {
     };
 
     pc.ontrack = (event) => {
-      console.log("Track received:", event.track.kind); // Debug log for received track type
+      console.log("Track received:", event.streams[0]); // Debug log for received track
       if (remoteVideoRef.current) {
-        try {
-          // Add the track to the remote MediaStream
-          remoteStream.addTrack(event.track);
-
-          // Assign the MediaStream to the video element only once
-          if (remoteVideoRef.current.srcObject !== remoteStream) {
-            remoteVideoRef.current.srcObject = remoteStream;
-            console.log("Remote video and audio stream set successfully");
-          }
-
-          // Ensure the video plays
-          remoteVideoRef.current
-            .play()
-            .then(() => console.log("Remote video stream playing"))
-            .catch((error) => {
-              console.error("Error playing remote video stream:", error);
-              toast.error("Failed to play remote video stream.");
-            });
-        } catch (error) {
-          console.error("Error setting remote video stream:", error);
-          toast.error("Failed to display remote video stream.");
-        }
+        remoteVideoRef.current.srcObject = event.streams[0]; // Set the remote stream to the video element
+        console.log("Remote video stream set");
       }
     };
 
