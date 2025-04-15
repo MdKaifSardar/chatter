@@ -144,7 +144,7 @@ export default function Home() {
         setIceCandidateQueue([]); // Clear the queue after processing
       }
     };
-    
+
     return pc;
   };
 
@@ -266,45 +266,88 @@ export default function Home() {
     }
   };
 
-  const acceptOffer = async (offerData: {
-    senderId: string;
-    offer: RTCSessionDescriptionInit;
-  }) => {
-    setIsLoading(true);
+  // const acceptOffer = async (offerData: {
+  //   senderId: string;
+  //   offer: RTCSessionDescriptionInit;
+  // }) => {
+  //   setIsLoading(true);
+  //   try {
+  //     const pc = createPeerConnection();
+  //     setPeerConnection(pc);
+
+  //     const stream = await navigator.mediaDevices.getUserMedia({
+  //       video: true,
+  //       audio: true,
+  //     });
+
+  //     setLocalStream(stream);
+  //     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+  //     if (localVideoRef.current) {
+  //       localVideoRef.current.srcObject = stream;
+  //       localVideoRef.current.muted = true;
+  //     }
+
+  //     await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
+  //     console.log("Remote description set with offer:", offerData.offer); // Debug log for remote description
+
+  //     const answer = await pc.createAnswer();
+  //     await pc.setLocalDescription(answer);
+
+  //     console.log("Answer created and set as local description:", answer); // Debug log for answer
+  //     sendSignal("answer", { answer });
+  //     setIncomingOffers([]);
+  //     setHasAcceptedOffer(true);
+  //   } catch (error) {
+  //     console.error("Error accepting the offer:", error);
+  //     toast.error(
+  //       "Failed to accept the offer. Please check your TURN server or network."
+  //     );
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
+  const acceptOffer = async (offerData: { senderId: string; offer: RTCSessionDescriptionInit }) => {
     try {
       const pc = createPeerConnection();
       setPeerConnection(pc);
 
+      // Get the remote client's media stream
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
 
-      setLocalStream(stream);
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      console.log("Remote client's local stream obtained:", stream); // Debug log for local stream
 
+      // Add the remote client's tracks to the peer connection
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      console.log("Remote client's tracks added to peer connection");
+
+      // Set the local video feed for the remote client
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        localVideoRef.current.muted = true;
+        console.log("Remote client's local video stream set");
       }
 
+      // Set the offer as the remote description
       await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
-      console.log("Remote description set with offer:", offerData.offer); // Debug log for remote description
+      console.log("Remote description set with offer");
 
+      // Create and send the answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      console.log("Answer created and local description set");
 
-      console.log("Answer created and set as local description:", answer); // Debug log for answer
       sendSignal("answer", { answer });
-      setIncomingOffers([]);
-      setHasAcceptedOffer(true);
+      console.log("Answer sent");
+
+      // Remove the accepted offer from the list
+      setIncomingOffers((prevOffers) => prevOffers.filter((offer) => offer.senderId !== offerData.senderId));
+      setHasAcceptedOffer(true); // Mark that an offer has been accepted
     } catch (error) {
-      console.error("Error accepting the offer:", error);
-      toast.error(
-        "Failed to accept the offer. Please check your TURN server or network."
-      );
-    } finally {
-      setIsLoading(false);
+      console.error("Error accepting offer:", error);
     }
   };
 
