@@ -32,116 +32,70 @@ export default function Home() {
   const [callStatus, setCallStatus] = useState<string | null>(null);
   const [remoteUserLeft, setRemoteUserLeft] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // Loader state
+  const [iceDetails, setIceDetails] = useState<string | null>(null); // State to store ICE details
   const clientId = useRef(uuidv4());
 
   const createPeerConnection = () => {
-    const pc = new RTCPeerConnection(
-      // {
-      //   iceServers: [
-      //     {
-      //       urls: "stun:stun.l.google.com:19302", // Google's public STUN server
-      //     },
-      //     {
-      //       urls: "stun:stun1.l.google.com:19302", // Additional Google STUN server
-      //     },
-      //     {
-      //       urls: "stun:stun2.l.google.com:19302", // Additional Google STUN server
-      //     },
-      //     {
-      //       urls: "stun:stun3.l.google.com:19302", // Additional Google STUN server
-      //     },
-      //     {
-      //       urls: "stun:stun4.l.google.com:19302", // Additional Google STUN server
-      //     },
-      //     {
-      //       urls: "turn:relay1.expressturn.com:3478", // Replace with your TURN server URL
-      //       username: "ef78J8TSYT38TYRLSL", // Replace with your TURN server username
-      //       credential: "41sxU7kc8Lwyv5yQ", // Replace with your TURN server credential
-      //     },
-      //   ],
-      // }
-    );
+    const pc = new RTCPeerConnection();
 
-    // const remoteStream = new MediaStream(); // Create a MediaStream for remote tracks
-
-    // pc.onicecandidate = (event) => {
-    //   if (event.candidate) {
-    //     sendSignal("ice-candidate", { candidate: event.candidate });
-    //   }
-    // };
-
-    // pc.ontrack = (event) => {
-    //   console.log("Track received:", event.track.kind); // Debug log for received track type
-    //   if (remoteVideoRef.current) {
-    //     try {
-    //       // Add the track to the remote MediaStream
-    //       remoteStream.addTrack(event.track);
-
-    //       // Assign the MediaStream to the video element only once
-    //       if (remoteVideoRef.current.srcObject !== remoteStream) {
-    //         remoteVideoRef.current.srcObject = remoteStream;
-    //         console.log("Remote video and audio stream set successfully");
-    //       }
-
-    //       // Ensure the video plays
-    //       remoteVideoRef.current
-    //         .play()
-    //         .then(() => console.log("Remote video stream playing"))
-    //         .catch((error) => {
-    //           console.error("Error playing remote video stream:", error);
-    //           toast.error("Failed to play remote video stream.");
-    //         });
-    //     } catch (error) {
-    //       console.error("Error setting remote video stream:", error);
-    //       toast.error("Failed to display remote video stream.");
-    //     }
-    //   }
-    // };
+    const remoteStream = new MediaStream(); // Create a MediaStream for remote tracks
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         sendSignal("ice-candidate", { candidate: event.candidate });
+        // Update ICE details state
+        setIceDetails((prev) => `${prev || ""}\n${JSON.stringify(event.candidate)}`);
       }
     };
 
     pc.ontrack = (event) => {
-      console.log("Track received:", event.streams[0]); // Debug log for received track
+      console.log("Track received:", event.track.kind); // Debug log for received track type
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0]; // Set the remote stream to the video element
-        console.log("Remote video stream set");
+        try {
+          // Add the track to the remote MediaStream
+          remoteStream.addTrack(event.track);
+
+          // Assign the MediaStream to the video element only once
+          if (remoteVideoRef.current.srcObject !== remoteStream) {
+            remoteVideoRef.current.srcObject = remoteStream;
+            console.log("Remote video and audio stream set successfully");
+          }
+
+          // Ensure the video plays
+          remoteVideoRef.current
+            .play()
+            .then(() => console.log("Remote video stream playing"))
+            .catch((error) => {
+              console.error("Error playing remote video stream:", error);
+              toast.error("Failed to play remote video stream.");
+            });
+        } catch (error) {
+          console.error("Error setting remote video stream:", error);
+          toast.error("Failed to display remote video stream.");
+        }
       }
     };
 
-    // pc.onconnectionstatechange = () => {
-    //   console.log("Connection state changed:", pc.connectionState);
-    //   if (
-    //     pc.connectionState === "disconnected" ||
-    //     pc.connectionState === "failed"
-    //   ) {
-    //     console.error("Connection state is disconnected");
-    //   }
-    // };
-
-    // pc.oniceconnectionstatechange = () => {
-    //   console.log("ICE connection state changed:", pc.iceConnectionState);
-    //   if (pc.iceConnectionState === "disconnected") {
-    //     console.warn(
-    //       "ICE connection failed. Retrying ICE candidate exchange..."
-    //     );
-
-    //     // Attempt to restart ICE
-    //     pc.restartIce();
-    //     toast.info("Attempting to restart ICE...");
-    //   }
-    // };
-
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") {
-        console.log("Peer connection established");
-        iceCandidateQueue.forEach(async (candidate) => {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        });
-        setIceCandidateQueue([]); // Clear the queue after processing
+      console.log("Connection state changed:", pc.connectionState);
+      if (
+        pc.connectionState === "disconnected" ||
+        pc.connectionState === "failed"
+      ) {
+        console.error("Connection state is disconnected");
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("ICE connection state changed:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "disconnected") {
+        console.warn(
+          "ICE connection failed. Retrying ICE candidate exchange..."
+        );
+
+        // Attempt to restart ICE
+        pc.restartIce();
+        toast.info("Attempting to restart ICE...");
       }
     };
 
@@ -266,88 +220,45 @@ export default function Home() {
     }
   };
 
-  // const acceptOffer = async (offerData: {
-  //   senderId: string;
-  //   offer: RTCSessionDescriptionInit;
-  // }) => {
-  //   setIsLoading(true);
-  //   try {
-  //     const pc = createPeerConnection();
-  //     setPeerConnection(pc);
-
-  //     const stream = await navigator.mediaDevices.getUserMedia({
-  //       video: true,
-  //       audio: true,
-  //     });
-
-  //     setLocalStream(stream);
-  //     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-  //     if (localVideoRef.current) {
-  //       localVideoRef.current.srcObject = stream;
-  //       localVideoRef.current.muted = true;
-  //     }
-
-  //     await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
-  //     console.log("Remote description set with offer:", offerData.offer); // Debug log for remote description
-
-  //     const answer = await pc.createAnswer();
-  //     await pc.setLocalDescription(answer);
-
-  //     console.log("Answer created and set as local description:", answer); // Debug log for answer
-  //     sendSignal("answer", { answer });
-  //     setIncomingOffers([]);
-  //     setHasAcceptedOffer(true);
-  //   } catch (error) {
-  //     console.error("Error accepting the offer:", error);
-  //     toast.error(
-  //       "Failed to accept the offer. Please check your TURN server or network."
-  //     );
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
-  const acceptOffer = async (offerData: { senderId: string; offer: RTCSessionDescriptionInit }) => {
+  const acceptOffer = async (offerData: {
+    senderId: string;
+    offer: RTCSessionDescriptionInit;
+  }) => {
+    setIsLoading(true);
     try {
       const pc = createPeerConnection();
       setPeerConnection(pc);
 
-      // Get the remote client's media stream
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
 
-      console.log("Remote client's local stream obtained:", stream); // Debug log for local stream
-
-      // Add the remote client's tracks to the peer connection
+      setLocalStream(stream);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      console.log("Remote client's tracks added to peer connection");
 
-      // Set the local video feed for the remote client
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        console.log("Remote client's local video stream set");
+        localVideoRef.current.muted = true;
       }
 
-      // Set the offer as the remote description
       await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
-      console.log("Remote description set with offer");
+      console.log("Remote description set with offer:", offerData.offer); // Debug log for remote description
 
-      // Create and send the answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      console.log("Answer created and local description set");
 
+      console.log("Answer created and set as local description:", answer); // Debug log for answer
       sendSignal("answer", { answer });
-      console.log("Answer sent");
-
-      // Remove the accepted offer from the list
-      setIncomingOffers((prevOffers) => prevOffers.filter((offer) => offer.senderId !== offerData.senderId));
-      setHasAcceptedOffer(true); // Mark that an offer has been accepted
+      setIncomingOffers([]);
+      setHasAcceptedOffer(true);
     } catch (error) {
-      console.error("Error accepting offer:", error);
+      console.error("Error accepting the offer:", error);
+      toast.error(
+        "Failed to accept the offer. Please check your TURN server or network."
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -395,6 +306,12 @@ export default function Home() {
       <ToastContainer />
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white relative">
         {isLoading && <Loader />}
+        {iceDetails && (
+          <div className="z-[100] w-[50%] absolute top-0 right-0 bg-black text-white p-4 rounded-lg shadow-lg overflow-y-auto max-h-48">
+            <h3 className="text-lg font-bold mb-2">ICE Details</h3>
+            <pre className="text-sm whitespace-pre-wrap">{iceDetails}</pre>
+          </div>
+        )}
         <video
           ref={remoteVideoRef}
           autoPlay
