@@ -171,9 +171,6 @@ export default function Home() {
     channel.bind("user-left", (data: any) => {
       if (data.senderId !== clientId.current) {
         console.log(`User ${data.senderId} has left the call.`);
-        toast.info(`User ${data.senderId} has left the call.`);
-        setCallStatus(`User ${data.senderId} has left the call.`);
-        setTimeout(() => setCallStatus(null), 5000);
       }
     });
 
@@ -214,7 +211,7 @@ export default function Home() {
       setPeerConnection(pc);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" }, // Use "user" for front camera on mobile
+        video: true, // Use "user" for front camera on mobile
         audio: true,
       });
 
