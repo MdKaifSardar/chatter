@@ -73,34 +73,67 @@ export default function Home() {
   }, [peerConnection, hasAcceptedOffer]);
 
   const createPeerConnection = () => {
-    const pc = new RTCPeerConnection();
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: "stun:stun.l.google.com:19302", // Google's public STUN server
+        },
+        {
+          urls: "turn:relay1.expressturn.com:3478", // Replace with your TURN server URL
+          username: "ef78J8TSYT38TYRLSL", // Replace with your TURN server username
+          credential: "41sxU7kc8Lwyv5yQ", // Replace with your TURN server credential
+        },
+      ],
+    });
+
+    const remoteStream = new MediaStream(); // Create a MediaStream for remote tracks
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log("ICE Candidate generated:", event.candidate); // Debug log for ICE candidates
         sendSignal("ice-candidate", { candidate: event.candidate });
       }
     };
 
     pc.ontrack = (event) => {
+      console.log("Track received:", event.track); // Debug log for received track
       if (remoteVideoRef.current) {
         try {
-          remoteVideoRef.current.srcObject = event.streams[0];
+          // Add the track to the remote MediaStream
+          remoteStream.addTrack(event.track);
+          remoteVideoRef.current.srcObject = remoteStream; // Assign the MediaStream to the video element
+          console.log("Remote video and audio stream set successfully");
         } catch (error) {
+          console.error("Error setting remote video stream:", error);
           toast.error("Failed to display remote video stream.");
         }
       }
     };
 
     pc.onconnectionstatechange = () => {
+      console.log("Connection state changed:", pc.connectionState); // Debug log for connection state
       if (pc.connectionState === "connected") {
+        console.log("Peer connection established");
         iceCandidateQueue.forEach(async (candidate) => {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch (error) {
+            console.error("Error adding ICE candidate from queue:", error);
             toast.error("Failed to add ICE candidate from queue.");
           }
         });
-        setIceCandidateQueue([]);
+        setIceCandidateQueue([]); // Clear the queue after processing
+      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        console.error("Peer connection failed or disconnected");
+        toast.error("Peer connection failed or disconnected.");
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("ICE connection state changed:", pc.iceConnectionState); // Debug log for ICE connection state
+      if (pc.iceConnectionState === "failed") {
+        console.error("ICE connection failed");
+        toast.error("ICE connection failed. Please check your network or TURN server.");
       }
     };
 
@@ -142,9 +175,11 @@ export default function Home() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
+      console.log("Offer created and set as local description:", offer); // Debug log for offer
       sendSignal("offer", { offer });
     } catch (error) {
-      toast.error("Failed to start the call.");
+      console.error("Error starting the call:", error);
+      toast.error("Failed to start the call. Please check your TURN server or network.");
     } finally {
       setIsLoading(false);
     }
@@ -170,15 +205,18 @@ export default function Home() {
       }
 
       await pc.setRemoteDescription(new RTCSessionDescription(offerData.offer));
+      console.log("Remote description set with offer:", offerData.offer); // Debug log for remote description
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
+      console.log("Answer created and set as local description:", answer); // Debug log for answer
       sendSignal("answer", { answer });
       setIncomingOffers([]);
       setHasAcceptedOffer(true);
     } catch (error) {
-      toast.error("Failed to accept the offer.");
+      console.error("Error accepting the offer:", error);
+      toast.error("Failed to accept the offer. Please check your TURN server or network.");
     } finally {
       setIsLoading(false);
     }
