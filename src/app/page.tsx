@@ -26,9 +26,21 @@ export default function Home() {
   const createPeerConnection = () => {
     const pc = new RTCPeerConnection({
       iceServers: [
-        // {
-        //   urls: "stun:stun.l.google.com:19302", // Google's public STUN server
-        // },
+        {
+          urls: "stun:stun.l.google.com:19302", // Google's public STUN server
+        },
+        {
+          urls: "stun:stun1.l.google.com:19302", // Additional Google STUN server
+        },
+        {
+          urls: "stun:stun2.l.google.com:19302", // Additional Google STUN server
+        },
+        {
+          urls: "stun:stun3.l.google.com:19302", // Additional Google STUN server
+        },
+        {
+          urls: "stun:stun4.l.google.com:19302", // Additional Google STUN server
+        },
         {
           urls: "turn:relay1.expressturn.com:3478", // Replace with your TURN server URL
           username: "ef78J8TSYT38TYRLSL", // Replace with your TURN server username
