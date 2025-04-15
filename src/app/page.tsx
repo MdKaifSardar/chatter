@@ -96,17 +96,26 @@ export default function Home() {
     };
 
     pc.ontrack = (event) => {
-      console.log("Track received:", event.track); // Debug log for received track
+      console.log("Track received:", event.track.kind); // Debug log for received track type
       if (remoteVideoRef.current) {
         try {
           // Add the track to the remote MediaStream
           remoteStream.addTrack(event.track);
-          remoteVideoRef.current.srcObject = remoteStream; // Assign the MediaStream to the video element
-          remoteVideoRef.current.play().catch((error) => {
-            console.error("Error playing remote video stream:", error);
-            toast.error("Failed to play remote video stream.");
-          });
-          console.log("Remote video and audio stream set successfully");
+
+          // Assign the MediaStream to the video element only once
+          if (remoteVideoRef.current.srcObject !== remoteStream) {
+            remoteVideoRef.current.srcObject = remoteStream;
+            console.log("Remote video and audio stream set successfully");
+          }
+
+          // Ensure the video plays
+          remoteVideoRef.current
+            .play()
+            .then(() => console.log("Remote video stream playing"))
+            .catch((error) => {
+              console.error("Error playing remote video stream:", error);
+              toast.error("Failed to play remote video stream.");
+            });
         } catch (error) {
           console.error("Error setting remote video stream:", error);
           toast.error("Failed to display remote video stream.");
@@ -142,6 +151,31 @@ export default function Home() {
     };
 
     return pc;
+  };
+
+  const retryPlay = (videoElement: HTMLVideoElement) => {
+    const maxRetries = 5; // Maximum number of retry attempts
+    let retryCount = 0;
+
+    const attemptPlay = () => {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        videoElement
+          .play()
+          .then(() => {
+            console.log("Remote video stream playing after retry");
+            toast.success("Remote video stream successfully loaded.");
+          })
+          .catch((error) => {
+            console.error(`Retry ${retryCount} failed. Retrying...`, error);
+            setTimeout(attemptPlay, 1000); // Retry after 1 second
+          });
+      } else {
+        toast.error("Failed to play remote video stream after multiple attempts.");
+      }
+    };
+
+    attemptPlay();
   };
 
   const sendSignal = (type: string, payload: any) => {
