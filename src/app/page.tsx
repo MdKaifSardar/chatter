@@ -77,18 +77,28 @@ export default function Home() {
     pc.onconnectionstatechange = () => {
       console.log("Connection state changed:", pc.connectionState); // Debug log for connection state
       if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        console.error("Peer connection failed or disconnected");
-        toast.error("Peer connection failed or disconnected.");
-        sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
+        console.warn("Connection state is unstable. Retrying...");
+        setTimeout(() => {
+          if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+            console.error("Peer connection failed or disconnected after retry.");
+            toast.error("Peer connection failed or disconnected.");
+            sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
+          }
+        }, 3000); // Retry after 3 seconds
       }
     };
 
     pc.oniceconnectionstatechange = () => {
       console.log("ICE connection state changed:", pc.iceConnectionState); // Debug log for ICE connection state
       if (pc.iceConnectionState === "failed") {
-        console.error("ICE connection failed");
-        toast.error("ICE connection failed. Please check your network or TURN server.");
-        sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
+        console.warn("ICE connection state is unstable. Retrying...");
+        setTimeout(() => {
+          if (pc.iceConnectionState === "failed") {
+            console.error("ICE connection failed after retry.");
+            toast.error("ICE connection failed. Please check your network or TURN server.");
+            sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
+          }
+        }, 3000); // Retry after 3 seconds
       }
     };
 
