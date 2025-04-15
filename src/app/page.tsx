@@ -36,15 +36,24 @@ export default function Home() {
   const clientId = useRef(uuidv4());
 
   const createPeerConnection = () => {
-    const pc = new RTCPeerConnection();
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: "stun:stun.l.google.com:19302", // Google's public STUN server
+        },
+        {
+          urls: "turn:relay1.expressturn.com:3478", // Replace with your TURN server URL
+          username: "ef78J8TSYT38TYRLSL", // Replace with your TURN server username
+          credential: "41sxU7kc8Lwyv5yQ", // Replace with your TURN server credential
+        },
+      ],
+    });
 
     const remoteStream = new MediaStream(); // Create a MediaStream for remote tracks
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         sendSignal("ice-candidate", { candidate: event.candidate });
-        // Update ICE details state
-        setIceDetails((prev) => `${prev || ""}\n${JSON.stringify(event.candidate)}`);
       }
     };
 
@@ -306,12 +315,6 @@ export default function Home() {
       <ToastContainer />
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white relative">
         {isLoading && <Loader />}
-        {iceDetails && (
-          <div className="z-[100] w-[50%] absolute top-0 right-0 bg-black text-white p-4 rounded-lg shadow-lg overflow-y-auto max-h-48">
-            <h3 className="text-lg font-bold mb-2">ICE Details</h3>
-            <pre className="text-sm whitespace-pre-wrap">{iceDetails}</pre>
-          </div>
-        )}
         <video
           ref={remoteVideoRef}
           autoPlay
