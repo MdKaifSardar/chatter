@@ -3,17 +3,28 @@
 import { useEffect, useRef, useState } from "react";
 import Pusher from "pusher-js";
 import { v4 as uuidv4 } from "uuid";
-import { FaVideo, FaVideoSlash, FaMicrophone, FaMicrophoneSlash, FaPhoneSlash } from "react-icons/fa";
-import { toast } from "react-toastify";
+import {
+  FaVideo,
+  FaVideoSlash,
+  FaMicrophone,
+  FaMicrophoneSlash,
+  FaPhoneSlash,
+} from "react-icons/fa";
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Loader from "../components/Loader";
 
 export default function Home() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
-  const [iceCandidateQueue, setIceCandidateQueue] = useState<RTCIceCandidateInit[]>([]);
-  const [incomingOffers, setIncomingOffers] = useState<{ senderId: string; offer: RTCSessionDescriptionInit }[]>([]);
+  const [peerConnection, setPeerConnection] =
+    useState<RTCPeerConnection | null>(null);
+  const [iceCandidateQueue, setIceCandidateQueue] = useState<
+    RTCIceCandidateInit[]
+  >([]);
+  const [incomingOffers, setIncomingOffers] = useState<
+    { senderId: string; offer: RTCSessionDescriptionInit }[]
+  >([]);
   const [hasAcceptedOffer, setHasAcceptedOffer] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
@@ -24,36 +35,37 @@ export default function Home() {
   const clientId = useRef(uuidv4());
 
   const createPeerConnection = () => {
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: "stun:stun.l.google.com:19302", // Google's public STUN server
-        },
-        {
-          urls: "stun:stun1.l.google.com:19302", // Additional Google STUN server
-        },
-        {
-          urls: "stun:stun2.l.google.com:19302", // Additional Google STUN server
-        },
-        {
-          urls: "stun:stun3.l.google.com:19302", // Additional Google STUN server
-        },
-        {
-          urls: "stun:stun4.l.google.com:19302", // Additional Google STUN server
-        },
-        {
-          urls: "turn:relay1.expressturn.com:3478", // Replace with your TURN server URL
-          username: "ef78J8TSYT38TYRLSL", // Replace with your TURN server username
-          credential: "41sxU7kc8Lwyv5yQ", // Replace with your TURN server credential
-        },
-      ],
-    });
+    const pc = new RTCPeerConnection(
+      // {
+      //   iceServers: [
+      //     {
+      //       urls: "stun:stun.l.google.com:19302", // Google's public STUN server
+      //     },
+      //     {
+      //       urls: "stun:stun1.l.google.com:19302", // Additional Google STUN server
+      //     },
+      //     {
+      //       urls: "stun:stun2.l.google.com:19302", // Additional Google STUN server
+      //     },
+      //     {
+      //       urls: "stun:stun3.l.google.com:19302", // Additional Google STUN server
+      //     },
+      //     {
+      //       urls: "stun:stun4.l.google.com:19302", // Additional Google STUN server
+      //     },
+      //     {
+      //       urls: "turn:relay1.expressturn.com:3478", // Replace with your TURN server URL
+      //       username: "ef78J8TSYT38TYRLSL", // Replace with your TURN server username
+      //       credential: "41sxU7kc8Lwyv5yQ", // Replace with your TURN server credential
+      //     },
+      //   ],
+      // }
+    );
 
     const remoteStream = new MediaStream(); // Create a MediaStream for remote tracks
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log("ICE Candidate generated:", event.candidate); // Debug log for ICE candidates
         sendSignal("ice-candidate", { candidate: event.candidate });
       }
     };
@@ -87,30 +99,25 @@ export default function Home() {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log("Connection state changed:", pc.connectionState); // Debug log for connection state
-      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        console.warn("Connection state is unstable. Retrying...");
-        setTimeout(() => {
-          if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-            console.error("Peer connection failed or disconnected after retry.");
-            toast.error("Peer connection failed or disconnected.");
-            sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
-          }
-        }, 3000); // Retry after 3 seconds
+      console.log("Connection state changed:", pc.connectionState);
+      if (
+        pc.connectionState === "disconnected" ||
+        pc.connectionState === "failed"
+      ) {
+        console.error("Connection state is disconnected");
       }
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log("ICE connection state changed:", pc.iceConnectionState); // Debug log for ICE connection state
-      if (pc.iceConnectionState === "failed") {
-        console.warn("ICE connection state is unstable. Retrying...");
-        setTimeout(() => {
-          if (pc.iceConnectionState === "failed") {
-            console.error("ICE connection failed after retry.");
-            toast.error("ICE connection failed. Please check your network or TURN server.");
-            sendSignal("connection-failed", { senderId: clientId.current }); // Notify the other user
-          }
-        }, 3000); // Retry after 3 seconds
+      console.log("ICE connection state changed:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "disconnected") {
+        console.warn(
+          "ICE connection failed. Retrying ICE candidate exchange..."
+        );
+
+        // Attempt to restart ICE
+        pc.restartIce();
+        toast.info("Attempting to restart ICE...");
       }
     };
 
@@ -127,14 +134,19 @@ export default function Home() {
 
     channel.bind("offer", (data: any) => {
       if (data.senderId === clientId.current || hasAcceptedOffer) return;
-      setIncomingOffers((prevOffers) => [...prevOffers, { senderId: data.senderId, offer: data.offer }]);
+      setIncomingOffers((prevOffers) => [
+        ...prevOffers,
+        { senderId: data.senderId, offer: data.offer },
+      ]);
     });
 
     channel.bind("answer", async (data: any) => {
       if (data.senderId === clientId.current) return;
       if (peerConnection) {
         try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+          await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(data.answer)
+          );
         } catch (error) {
           toast.error("Failed to set remote description for answer.");
         }
@@ -145,7 +157,9 @@ export default function Home() {
       if (data.senderId === clientId.current) return;
       if (peerConnection?.remoteDescription) {
         try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+          await peerConnection.addIceCandidate(
+            new RTCIceCandidate(data.candidate)
+          );
         } catch (error) {
           toast.error("Failed to add ICE candidate.");
         }
@@ -160,13 +174,14 @@ export default function Home() {
         toast.info(`User ${data.senderId} has left the call.`);
         setCallStatus(`User ${data.senderId} has left the call.`);
         setTimeout(() => setCallStatus(null), 5000);
-        // Do not end the call for the current user
       }
     });
 
     channel.bind("connection-failed", (data: any) => {
       if (data.senderId !== clientId.current) {
-        console.error("Peer connection failed or disconnected by the other user.");
+        console.error(
+          "Peer connection failed or disconnected by the other user."
+        );
         toast.error("The other user's connection failed or disconnected.");
         setCallStatus("The other user's connection failed or disconnected.");
         setTimeout(() => setCallStatus(null), 5000);
@@ -222,13 +237,18 @@ export default function Home() {
       sendSignal("offer", { offer });
     } catch (error) {
       console.error("Error starting the call:", error);
-      toast.error("Failed to start the call. Please check your TURN server or network.");
+      toast.error(
+        "Failed to start the call. Please check your TURN server or network."
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const acceptOffer = async (offerData: { senderId: string; offer: RTCSessionDescriptionInit }) => {
+  const acceptOffer = async (offerData: {
+    senderId: string;
+    offer: RTCSessionDescriptionInit;
+  }) => {
     setIsLoading(true);
     try {
       const pc = createPeerConnection();
@@ -259,7 +279,9 @@ export default function Home() {
       setHasAcceptedOffer(true);
     } catch (error) {
       console.error("Error accepting the offer:", error);
-      toast.error("Failed to accept the offer. Please check your TURN server or network.");
+      toast.error(
+        "Failed to accept the offer. Please check your TURN server or network."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -267,7 +289,9 @@ export default function Home() {
 
   const toggleVideo = () => {
     if (localStream) {
-      localStream.getVideoTracks().forEach((track) => (track.enabled = !isVideoEnabled));
+      localStream
+        .getVideoTracks()
+        .forEach((track) => (track.enabled = !isVideoEnabled));
       setIsVideoEnabled(!isVideoEnabled);
     }
   };
@@ -303,73 +327,74 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white relative">
-      {isLoading && <Loader />}
-      <video
-        ref={remoteVideoRef}
-        autoPlay
-        className="absolute top-0 left-0 w-full h-full object-cover"
-      />
-      <div className="absolute top-4 left-4 w-48 h-36 bg-black border border-gray-700 rounded-lg overflow-hidden md:w-64 md:h-48">
+    <>
+      <ToastContainer />
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white relative">
+        {isLoading && <Loader />}
         <video
-          ref={localVideoRef}
+          ref={remoteVideoRef}
           autoPlay
-          muted
-          className="w-full h-full object-contain"
+          className="absolute top-0 left-0 w-full h-full object-cover"
         />
-      </div>
-      <div className="absolute bottom-4 flex gap-4">
-        {!peerConnection && !hasAcceptedOffer && (
-          <button
-            onClick={startCall}
-            className="px-4 py-2 bg-blue-500 rounded-full hover:bg-blue-400"
-          >
-            Start Call
-          </button>
-        )}
-        {(peerConnection || hasAcceptedOffer) && (
-          <>
-            <button
-              onClick={toggleVideo}
-              className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700"
-            >
-              {isVideoEnabled ? <FaVideo /> : <FaVideoSlash />}
-            </button>
-            <button
-              onClick={toggleMic}
-              className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700"
-            >
-              {isMicEnabled ? <FaMicrophone /> : <FaMicrophoneSlash />}
-            </button>
-            <button
-              onClick={endCall}
-              className="px-4 py-2 bg-red-600 rounded-full hover:bg-red-500"
-            >
-              <FaPhoneSlash />
-            </button>
-          </>
-        )}
-      </div>
-      {callStatus && hasAcceptedOffer && (
-        <div className="absolute top-16 bg-red-500 text-white px-4 py-2 rounded">
-          {callStatus}
+        <div className="absolute top-4 left-4 w-48 h-36 bg-black border border-gray-700 rounded-lg overflow-hidden md:w-64 md:h-48">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            className="w-full h-full object-contain"
+          />
         </div>
-      )}
-      {!peerConnection && !hasAcceptedOffer && (
-        <div className="incoming-offers mt-4 z-[100]">
-          {incomingOffers.map((offer) => (
-            <div key={offer.senderId} className="offer-item flex items-center gap-2 mt-2">
-              <span>Offer from {offer.senderId}</span>
+        <div className="absolute bottom-4 flex gap-4">
+          {!peerConnection && !hasAcceptedOffer && (
+            <button
+              onClick={startCall}
+              className="px-4 py-2 bg-blue-500 rounded-full hover:bg-blue-400"
+            >
+              Start Call
+            </button>
+          )}
+          {(peerConnection || hasAcceptedOffer) && (
+            <>
               <button
-                onClick={() => acceptOffer(offer)}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                onClick={toggleVideo}
+                className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700"
               >
-                Receive Offer
+                {isVideoEnabled ? <FaVideo /> : <FaVideoSlash />}
               </button>
-            </div>
-          ))}
+              <button
+                onClick={toggleMic}
+                className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700"
+              >
+                {isMicEnabled ? <FaMicrophone /> : <FaMicrophoneSlash />}
+              </button>
+              <button
+                onClick={endCall}
+                className="px-4 py-2 bg-red-600 rounded-full hover:bg-red-500"
+              >
+                <FaPhoneSlash />
+              </button>
+            </>
+          )}
         </div>
-      )}
-    </div>
+        {!peerConnection && !hasAcceptedOffer && (
+          <div className="incoming-offers mt-4 z-[100]">
+            {incomingOffers.map((offer) => (
+              <div
+                key={offer.senderId}
+                className="offer-item flex items-center gap-2 mt-2"
+              >
+                <span>Offer from {offer.senderId}</span>
+                <button
+                  onClick={() => acceptOffer(offer)}
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                  Receive Offer
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
