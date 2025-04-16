@@ -91,7 +91,7 @@ export default function Home() {
         pc.connectionState === "disconnected" ||
         pc.connectionState === "failed"
       ) {
-        console.error("Connection state is disconnected");
+        console.error("Connection state is disconnected or failed");
       }
     };
 
@@ -169,7 +169,6 @@ export default function Home() {
         toast.error("The other user's connection failed or disconnected.");
         setCallStatus("The other user's connection failed or disconnected.");
         setTimeout(() => setCallStatus(null), 5000);
-        // Do not end the call for the current user
       }
     });
 
@@ -177,6 +176,20 @@ export default function Home() {
       pusher.unsubscribe("webrtc-vchat");
     };
   }, [peerConnection, hasAcceptedOffer]);
+
+  // Separate useEffect for handling queued ICE candidates
+  useEffect(() => {
+    if (peerConnection && peerConnection.remoteDescription) {
+      iceCandidateQueue.forEach(async (candidate) => {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (error) {
+          console.error("Error adding queued ICE candidate:", error);
+        }
+      });
+      setIceCandidateQueue([]); // Clear the queue after adding candidates
+    }
+  }, [peerConnection, peerConnection?.remoteDescription, iceCandidateQueue]);
 
   const sendSignal = (type: string, payload: any) => {
     fetch("/api/signal", {
@@ -197,8 +210,14 @@ export default function Home() {
       const pc = createPeerConnection();
       setPeerConnection(pc);
 
+      // Request media permissions and get user media with higher resolution
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true, // Use "user" for front camera on mobile
+        video: {
+          facingMode: "user", // Use "user" for front camera on mobile
+          width: { ideal: 1280 }, // Higher resolution width
+          height: { ideal: 720 }, // Higher resolution height
+          frameRate: { ideal: 30 }, // Higher frame rate
+        },
         audio: true,
       });
 
@@ -318,14 +337,14 @@ export default function Home() {
         <video
           ref={remoteVideoRef}
           autoPlay
-          className="absolute top-0 left-0 w-full h-full object-cover"
+          className="absolute top-0 left-auto right-auto h-full w-auto object-contain md:object-cover transform scale-x-[-1]" // Mirror horizontally
         />
         <div className="absolute top-4 left-4 w-48 h-36 bg-black border border-gray-700 rounded-lg overflow-hidden md:w-64 md:h-48">
           <video
             ref={localVideoRef}
             autoPlay
             muted
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain transform scale-x-[-1]" // Mirror horizontally
           />
         </div>
         <div className="absolute bottom-4 flex gap-4">
