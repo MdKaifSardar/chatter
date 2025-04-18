@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
     const webhook = new Webhook(CLERK_WEBHOOK_SECRET);
     const event = webhook.verify(payload, headers) as {
       type: string;
-      data: { id: string; username: string };
+      data: {
+        id: string;
+        username: string;
+        email_addresses?: { email_address: string }[];
+      };
     };
 
     // Ensure the event type is `user.created`
@@ -28,7 +32,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { id: clerkId, username } = event.data;
+    const { id: clerkId, username, email_addresses } = event.data;
+
+    // Extract the email if available
+    const email = email_addresses?.[0]?.email_address || "";
 
     // Validate the required fields
     if (!clerkId || !username) {
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest) {
     await connectToDatabase();
 
     // Create the user in the database
-    await createUser(username, clerkId);
+    await createUser(username, clerkId, email, "");
 
     return NextResponse.json({ message: "User created successfully." }, { status: 201 });
   } catch (error: any) {
