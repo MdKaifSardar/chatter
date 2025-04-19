@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import Pusher from "pusher-js";
-import { v4 as uuidv4 } from "uuid";
 import {
   FaVideo,
   FaVideoSlash,
@@ -30,7 +30,8 @@ export default function VideoChatComp() {
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [callStatus, setCallStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const clientId = useRef(uuidv4());
+
+  const { userId: clerkId } = useAuth(); // Get the Clerk user ID
 
   const createPeerConnection = () => {
     const pc = new RTCPeerConnection({
@@ -85,7 +86,7 @@ export default function VideoChatComp() {
     const channel = pusher.subscribe("webrtc-vchat");
 
     channel.bind("offer", (data: any) => {
-      if (data.senderId === clientId.current || hasAcceptedOffer) return;
+      if (data.senderId === clerkId || hasAcceptedOffer) return;
       setIncomingOffers((prevOffers) => [
         ...prevOffers,
         { senderId: data.senderId, offer: data.offer },
@@ -93,7 +94,7 @@ export default function VideoChatComp() {
     });
 
     channel.bind("answer", async (data: any) => {
-      if (data.senderId === clientId.current) return;
+      if (data.senderId === clerkId) return;
       if (peerConnection) {
         try {
           await peerConnection.setRemoteDescription(
@@ -106,7 +107,7 @@ export default function VideoChatComp() {
     });
 
     channel.bind("ice-candidate", async (data: any) => {
-      if (data.senderId === clientId.current) return;
+      if (data.senderId === clerkId) return;
       if (peerConnection?.remoteDescription) {
         try {
           await peerConnection.addIceCandidate(
@@ -123,7 +124,7 @@ export default function VideoChatComp() {
     return () => {
       pusher.unsubscribe("webrtc-vchat");
     };
-  }, [peerConnection, hasAcceptedOffer]);
+  }, [peerConnection, hasAcceptedOffer, clerkId]);
 
   useEffect(() => {
     if (peerConnection && peerConnection.remoteDescription) {
@@ -142,7 +143,7 @@ export default function VideoChatComp() {
     fetch("/api/signal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, senderId: clientId.current, ...payload }),
+      body: JSON.stringify({ type, senderId: clerkId, ...payload }),
     }).catch(() => toast.error("Failed to send signal."));
   };
 
@@ -244,7 +245,7 @@ export default function VideoChatComp() {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
-    sendSignal("user-left", { senderId: clientId.current });
+    sendSignal("user-left", { senderId: clerkId });
     setHasAcceptedOffer(false);
     setCallStatus(null);
   };

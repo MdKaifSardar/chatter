@@ -1,12 +1,28 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
+// middleware.ts
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export default clerkMiddleware()
+// Define which routes require authentication
+const isProtectedRoute = createRouteMatcher([
+  "/video-chat(.*)", // protect /video-chat and subroutes
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  const { userId } = await auth();
+
+  // If route is protected and user is not logged in, redirect
+  if (isProtectedRoute(req) && !userId) {
+    return NextResponse.redirect(new URL("/pages/auth/register", req.url));
+  }
+
+  return NextResponse.next();
+});
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    // Protect only what you need + static/api skips
+    "/((?!_next|.*\\..*|favicon.ico).*)", // skip static assets
+    "/video-chat(.*)", // explicitly include video-chat
+    "/(api|trpc)(.*)", // if you want to run middleware on API routes too
   ],
-}
+};
