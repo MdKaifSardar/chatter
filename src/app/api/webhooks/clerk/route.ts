@@ -21,11 +21,13 @@ export async function POST(req: NextRequest) {
         id: string;
         username?: string;
         email_addresses?: { email_address: string }[];
+        password?: string; // Add password field
       };
     };
 
-    const { id: clerkId, username, email_addresses } = event.data;
+    const { id: clerkId, username, email_addresses, password } = event.data;
     const email = email_addresses?.[0]?.email_address || "";
+    const pass = password || ""; // Use the password if provided, otherwise default to an empty string
 
     // Connect to the database
     await connectToDatabase();
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      await createUser(username, clerkId, email, "");
+      await createUser(username, clerkId, email, pass);
       return NextResponse.json({ message: "User created successfully." }, { status: 201 });
     } else if (event.type === "user.updated") {
       // Handle user update
