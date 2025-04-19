@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
-import { createUser } from "../../../../lib/actions/user.actions";
+import { createUser, updateUser, deleteUser } from "../../../../lib/actions/user.actions";
 import { connectToDatabase } from "../../../../lib/database/db";
 
 const CLERK_WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET!;
@@ -19,39 +19,41 @@ export async function POST(req: NextRequest) {
       type: string;
       data: {
         id: string;
-        username: string;
+        username?: string;
         email_addresses?: { email_address: string }[];
       };
     };
 
-    // Ensure the event type is `user.created`
-    if (event.type !== "user.created") {
-      return NextResponse.json(
-        { error: "Invalid event type. Only 'user.created' is supported." },
-        { status: 400 }
-      );
-    }
-
     const { id: clerkId, username, email_addresses } = event.data;
-
-    // Extract the email if available
     const email = email_addresses?.[0]?.email_address || "";
-
-    // Validate the required fields
-    if (!clerkId || !username) {
-      return NextResponse.json(
-        { error: "Missing required fields: clerkId or username." },
-        { status: 400 }
-      );
-    }
 
     // Connect to the database
     await connectToDatabase();
 
-    // Create the user in the database
-    await createUser(username, clerkId, email, "");
-
-    return NextResponse.json({ message: "User created successfully." }, { status: 201 });
+    if (event.type === "user.created") {
+      // Handle user creation
+      if (!clerkId || !username) {
+        return NextResponse.json(
+          { error: "Missing required fields: clerkId or username." },
+          { status: 400 }
+        );
+      }
+      await createUser(username, clerkId, email, "");
+      return NextResponse.json({ message: "User created successfully." }, { status: 201 });
+    } else if (event.type === "user.updated") {
+      // Handle user update
+      await updateUser(clerkId, { username, email });
+      return NextResponse.json({ message: "User updated successfully." }, { status: 200 });
+    } else if (event.type === "user.deleted") {
+      // Handle user deletion
+      await deleteUser(clerkId);
+      return NextResponse.json({ message: "User deleted successfully." }, { status: 200 });
+    } else {
+      return NextResponse.json(
+        { error: "Unsupported event type." },
+        { status: 400 }
+      );
+    }
   } catch (error: any) {
     console.error("Error processing Clerk webhook:", error);
 
@@ -60,13 +62,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Invalid webhook payload or signature." },
         { status: 400 }
-      );
-    }
-
-    if (error.message.includes("User with this Clerk ID already exists")) {
-      return NextResponse.json(
-        { error: "User with this Clerk ID already exists." },
-        { status: 409 }
       );
     }
 

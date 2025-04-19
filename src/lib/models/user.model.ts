@@ -9,10 +9,10 @@ export interface IUser extends Document {
 
 const UserSchema: Schema = new Schema(
   {
-    username: { type: String, required: true, unique: true },
+    username: { type: String, required: true, unique: true }, // Ensure unique username
     clerkId: { type: String, required: true, unique: true },
-    email: { type: String, default: "" }, // Optional field
-    pass: { type: String, default: "" }, // Optional field
+    email: { type: String, default: "", unique: true }, // Ensure unique email
+    pass: { type: String, default: "" },
   },
   { timestamps: true }
 );

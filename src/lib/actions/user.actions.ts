@@ -23,3 +23,33 @@ export const createUser = async (
 
   return newUser;
 };
+
+export const updateUser = async (
+  clerkId: string,
+  updates: Partial<{ username: string; email: string }>
+): Promise<IUser | null> => {
+  await connectToDatabase();
+
+  // Find the user by clerkId
+  const user = await User.findOne({ clerkId });
+  if (!user) {
+    throw new Error("User not found.");
+  }
+
+  // Update the user details
+  if (updates.username) user.username = updates.username;
+  if (updates.email) user.email = updates.email;
+
+  await user.save();
+  return user;
+};
+
+export const deleteUser = async (clerkId: string): Promise<void> => {
+  await connectToDatabase();
+
+  // Delete the user by clerkId
+  const result = await User.deleteOne({ clerkId });
+  if (result.deletedCount === 0) {
+    throw new Error("User not found.");
+  }
+};

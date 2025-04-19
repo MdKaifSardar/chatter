@@ -8,7 +8,7 @@ export default function RegisterPage() {
   return (
     <>
       <ToastContainer />
-      <div className="w-full h-screen flex flex-col justify-center items-center">
+      <div className="w-full h-fit py-[3rem] flex flex-col justify-center items-center">
         <SignUp
           path="/pages/auth/register"
           routing="path"
