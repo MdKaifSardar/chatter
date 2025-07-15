@@ -3,16 +3,21 @@
 import { usePathname } from "next/navigation";
 import Navbar from "../Navbar";
 
-export default function ClientLayout({ children }: { children: React.ReactNode }) {
+export default function ClientLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
-  const isAuthPage =
+  const isExcludedPage =
     pathname?.startsWith("/pages/auth/register") ||
-    pathname?.startsWith("/pages/auth/sign-in");
+    pathname?.startsWith("/pages/auth/sign-in") ||
+    pathname?.startsWith("/pages/video-chat"); // Exclude Navbar for video-chat page
 
   return (
     <>
-      {!isAuthPage && <Navbar />}
-      {children}
+      {!isExcludedPage && <Navbar />}
+      <div>{children}</div>
     </>
   );
 }

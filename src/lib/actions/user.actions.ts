@@ -53,3 +53,20 @@ export const deleteUser = async (clerkId: string): Promise<void> => {
     throw new Error("User not found.");
   }
 };
+
+export const getAllUsers = async (): Promise<{ username: string; email: string; clerkId: string }[]> => {
+  try {
+    await connectToDatabase();
+
+    // Fetch all users and return username, email, and clerkId
+    const users = await User.find({}, "username email clerkId");
+    return users.map((user) => ({
+      username: user.username,
+      email: user.email,
+      clerkId: user.clerkId,
+    }));
+  } catch (error: any) {
+    console.error("Error fetching users:", error);
+    throw new Error("Failed to fetch users. Please try again later.");
+  }
+};

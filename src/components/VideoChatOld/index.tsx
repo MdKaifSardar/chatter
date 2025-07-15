@@ -13,7 +13,7 @@ import {
 import { toast } from "react-toastify";
 import Loader from "../Loader";
 
-export default function VideoChatComp() {
+export default function VideoChatOld() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const [peerConnection, setPeerConnection] =
@@ -159,7 +159,11 @@ export default function VideoChatComp() {
       setPeerConnection(pc);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: true,
       });
 
@@ -184,7 +188,10 @@ export default function VideoChatComp() {
     }
   };
 
-  const acceptOffer = async (offerData: { senderId: string; offer: RTCSessionDescriptionInit }) => {
+  const acceptOffer = async (offerData: {
+    senderId: string;
+    offer: RTCSessionDescriptionInit;
+  }) => {
     setIsLoading(true);
     try {
       const pc = createPeerConnection();
@@ -218,14 +225,18 @@ export default function VideoChatComp() {
 
   const toggleVideo = () => {
     if (localStream) {
-      localStream.getVideoTracks().forEach((track) => (track.enabled = !isVideoEnabled));
+      localStream
+        .getVideoTracks()
+        .forEach((track) => (track.enabled = !isVideoEnabled));
       setIsVideoEnabled(!isVideoEnabled);
     }
   };
 
   const toggleMic = () => {
     if (localStream) {
-      localStream.getAudioTracks().forEach((track) => (track.enabled = !isMicEnabled));
+      localStream
+        .getAudioTracks()
+        .forEach((track) => (track.enabled = !isMicEnabled));
       setIsMicEnabled(!isMicEnabled);
     }
   };
@@ -268,19 +279,31 @@ export default function VideoChatComp() {
       </div>
       <div className="absolute bottom-4 flex gap-4">
         {!peerConnection && !hasAcceptedOffer && (
-          <button onClick={startCall} className="px-4 py-2 bg-blue-500 rounded-full hover:bg-blue-400">
+          <button
+            onClick={startCall}
+            className="px-4 py-2 bg-blue-500 rounded-full hover:bg-blue-400"
+          >
             Start Call
           </button>
         )}
         {(peerConnection || hasAcceptedOffer) && (
           <>
-            <button onClick={toggleVideo} className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700">
+            <button
+              onClick={toggleVideo}
+              className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700"
+            >
               {isVideoEnabled ? <FaVideo /> : <FaVideoSlash />}
             </button>
-            <button onClick={toggleMic} className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700">
+            <button
+              onClick={toggleMic}
+              className="px-4 py-2 bg-gray-800 rounded-full hover:bg-gray-700"
+            >
               {isMicEnabled ? <FaMicrophone /> : <FaMicrophoneSlash />}
             </button>
-            <button onClick={endCall} className="px-4 py-2 bg-red-600 rounded-full hover:bg-red-500">
+            <button
+              onClick={endCall}
+              className="px-4 py-2 bg-red-600 rounded-full hover:bg-red-500"
+            >
               <FaPhoneSlash />
             </button>
           </>
@@ -289,7 +312,10 @@ export default function VideoChatComp() {
       {!peerConnection && !hasAcceptedOffer && (
         <div className="incoming-offers mt-4 z-[100]">
           {incomingOffers.map((offer) => (
-            <div key={offer.senderId} className="offer-item flex items-center gap-2 mt-2">
+            <div
+              key={offer.senderId}
+              className="offer-item flex items-center gap-2 mt-2"
+            >
               <span>Offer from {offer.senderId}</span>
               <button
                 onClick={() => acceptOffer(offer)}
