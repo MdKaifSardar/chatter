@@ -542,25 +542,25 @@ export default function CallUsersComp() {
   };
 
   // Use usersLoading and usersError for loader and error display
-  if (usersLoading) return <Loader />;
+  if (usersLoading)
+    return (
+      <div className="fixed inset-0 w-screen h-screen flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <Loader />
+      </div>
+    );
   if (usersError) return <div className="text-red-500">{usersError}</div>;
 
   return (
-    <div className="flex flex-col md:flex-row items-start w-full">
-      {/* Left side: UserList and CallList stacked vertically */}
+    <div className="mt-[3.5rem] flex flex-col md:flex-row items-start w-full">
+      {/* Left side: UserList and CallList as their own accordions */}
       {!showVideoChat ? (
-        <div className="flex flex-col w-full md:w-1/2 lg:w-1/3">
-          <h2 className="text-2xl font-bold mb-4 mt-2 md:mt-6 text-left">
-            Users in the System
-          </h2>
+        <div className="h-fit flex flex-col w-full md:w-1/2 lg:w-1/3">
           <UserList {...userListProps} />
-          <div className="mt-8">
-            <CallList {...callListProps} />
-          </div>
+          <CallList {...callListProps} />
         </div>
       ) : null}
       {/* Right side: VideoChatCompNew - always rendered */}
-      <div className="bg-yellow-400 w-full md:w-1/2 lg:w-2/3">
+      <div className="bg-yellow-400 w-full md:w-1/2 lg:w-2/3 min-h-[300px] flex items-center justify-center">
         <VideoChatCompNew
           localVideoRef={localVideoRef}
           remoteVideoRef={remoteVideoRef}

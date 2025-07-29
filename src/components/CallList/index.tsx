@@ -1,5 +1,6 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
+import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 
 // Props interface for all required state and functions
 interface CallListProps {
@@ -17,36 +18,61 @@ export default function CallList(props: CallListProps) {
     localVideoRef,
   } = props;
 
-  if (!incomingCalls.length) return null;
+  const [open, setOpen] = useState(true);
+
+  // Always render the container so the accordion panel is always present,
+  // but only show the list if there are incoming calls.
   return (
-    <div className="flex flex-col w-full">
-      <h3 className="text-lg font-semibold mb-2 text-left">Incoming Calls</h3>
-      <ul className="flex flex-col space-y-2">
-        {incomingCalls.length === 0 && (
-          <li className="text-gray-500">No calls received yet.</li>
+    <div className="w-full">
+      <button
+        className="flex items-center justify-between w-full px-4 py-3 bg-white border-b border-gray-200 focus:outline-none"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-controls="calllist-panel"
+      >
+        <span className="text-xl font-semibold text-left">
+          Incoming Calls
+        </span>
+        {open ? <FaChevronUp className="ml-2" /> : <FaChevronDown className="ml-2" />}
+      </button>
+      <div
+        id="calllist-panel"
+        className={`transition-all duration-300 overflow-hidden ${
+          open ? "max-h-[1000px]" : "max-h-0"
+        }`}
+      >
+        {open && (
+          <div className="flex flex-col w-full px-2 py-2 md:px-4">
+            <ul className="flex flex-col space-y-2">
+              {incomingCalls.length === 0 ? (
+                <li className="text-gray-500">No calls received yet.</li>
+              ) : (
+                incomingCalls.map((call, idx) => (
+                  <li
+                    key={idx}
+                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-100 p-3 rounded w-full"
+                  >
+                    <span className="break-words">
+                      Call from{" "}
+                      <span className="font-semibold">{call.senderUsername}</span> (ID:{" "}
+                      {call.senderId})
+                    </span>
+                    <button
+                      onClick={() => acceptOffer(call)}
+                      className="mt-2 sm:mt-0 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition w-full sm:w-auto"
+                      disabled={isLoading}
+                    >
+                      Receive Call
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+            {/* Optionally show local video preview */}
+            <video ref={localVideoRef} autoPlay muted className="hidden" />
+          </div>
         )}
-        {incomingCalls.map((call, idx) => (
-          <li
-            key={idx}
-            className="flex items-center justify-between bg-gray-100 p-3 rounded"
-          >
-            <span>
-              Call from{" "}
-              <span className="font-semibold">{call.senderUsername}</span> (ID:{" "}
-              {call.senderId})
-            </span>
-            <button
-              onClick={() => acceptOffer(call)}
-              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-              disabled={isLoading}
-            >
-              Receive Call
-            </button>
-          </li>
-        ))}
-      </ul>
-      {/* Optionally show local video preview */}
-      <video ref={localVideoRef} autoPlay muted className="hidden" />
+      </div>
     </div>
   );
 }
