@@ -70,3 +70,16 @@ export const getAllUsers = async (): Promise<{ username: string; email: string; 
     throw new Error("Failed to fetch users. Please try again later.");
   }
 };
+
+export const getUserByClerkId = async (
+  clerkId: string
+): Promise<{ username: string; email: string; clerkId: string } | null> => {
+  await connectToDatabase();
+  const user = await User.findOne({ clerkId }, "username email clerkId");
+  if (!user) return null;
+  return {
+    username: user.username,
+    email: user.email,
+    clerkId: user.clerkId,
+  };
+};

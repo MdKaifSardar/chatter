@@ -1,22 +1,25 @@
 "use client";
 import React, { useState } from "react";
-import { FaChevronDown, FaChevronUp } from "react-icons/fa";
+import { FaChevronDown, FaChevronUp, FaPhoneSlash } from "react-icons/fa";
 
 // Props interface for all required state and functions
 interface CallListProps {
   incomingCalls: any[];
   isLoading: boolean;
-  acceptOffer: (call: { senderId: string; offer: RTCSessionDescriptionInit }) => void;
+  acceptOffer: (call: {
+    senderId: string;
+    offer: RTCSessionDescriptionInit;
+  }) => void;
+  rejectCall: (call: {
+    senderId: string;
+    offer: RTCSessionDescriptionInit;
+  }) => void;
   localVideoRef: React.RefObject<HTMLVideoElement>;
 }
 
 export default function CallList(props: CallListProps) {
-  const {
-    incomingCalls,
-    isLoading,
-    acceptOffer,
-    localVideoRef,
-  } = props;
+  const { incomingCalls, isLoading, acceptOffer, rejectCall, localVideoRef } =
+    props;
 
   const [open, setOpen] = useState(true);
 
@@ -30,10 +33,12 @@ export default function CallList(props: CallListProps) {
         aria-expanded={open}
         aria-controls="calllist-panel"
       >
-        <span className="text-xl font-semibold text-left">
-          Incoming Calls
-        </span>
-        {open ? <FaChevronUp className="ml-2" /> : <FaChevronDown className="ml-2" />}
+        <span className="text-xl font-semibold text-left">Incoming Calls</span>
+        {open ? (
+          <FaChevronUp className="ml-2" />
+        ) : (
+          <FaChevronDown className="ml-2" />
+        )}
       </button>
       <div
         id="calllist-panel"
@@ -54,16 +59,27 @@ export default function CallList(props: CallListProps) {
                   >
                     <span className="break-words">
                       Call from{" "}
-                      <span className="font-semibold">{call.senderUsername}</span> (ID:{" "}
-                      {call.senderId})
+                      <span className="font-semibold">
+                        {call.senderUsername || "Unknown User"}
+                      </span>
                     </span>
-                    <button
-                      onClick={() => acceptOffer(call)}
-                      className="mt-2 sm:mt-0 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition w-full sm:w-auto"
-                      disabled={isLoading}
-                    >
-                      Receive Call
-                    </button>
+                    <div className="flex flex-row gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                      <button
+                        onClick={() => acceptOffer(call)}
+                        className="px-3 py-2 sm:px-4 sm:py-2 bg-green-500 text-white rounded hover:bg-green-600 transition w-full sm:w-auto text-base sm:text-base"
+                        disabled={isLoading}
+                      >
+                        Receive Call
+                      </button>
+                      <button
+                        onClick={() => rejectCall(call)}
+                        className="px-3 py-2 sm:px-4 sm:py-2 bg-red-500 text-white rounded hover:bg-red-600 transition w-full sm:w-auto flex items-center gap-2 text-base sm:text-base"
+                        disabled={isLoading}
+                        title="Reject Call"
+                      >
+                        <FaPhoneSlash /> Reject
+                      </button>
+                    </div>
                   </li>
                 ))
               )}

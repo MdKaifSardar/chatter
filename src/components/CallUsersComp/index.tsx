@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { toast } from "react-toastify";
-import { getAllUsers } from "../../lib/actions/user.actions";
+import { getAllUsers, getUserByClerkId } from "../../lib/actions/user.actions";
 import { useAuth } from "@clerk/nextjs";
 import Loader from "../Loader";
 import { useRouter } from "next/navigation";
@@ -33,10 +33,7 @@ export default function CallUsersComp() {
   const [callActive, setCallActive] = useState(false);
   const [callAnswered, setCallAnswered] = useState(false);
   const [showVideoChat, setShowVideoChat] = useState(false);
-  // Add a trigger state for call cancelled
-  // const [callCancelledTrigger, setCallCancelledTrigger] = useState<null | any>(
-  //   null
-  // );
+  const [isCallerStartingCall, setIsCallerStartingCall] = useState(false);
 
   // CallList state
   const [callPeerConnection, setCallPeerConnection] =
@@ -77,15 +74,27 @@ export default function CallUsersComp() {
     setCallingUserId(targetClerkId);
     setCallAnswered(false);
     setCallActive(false);
+    setIsCallerStartingCall(true); // Hide lists for caller immediately
     try {
+      // Fetch the caller's username using their clerkId
+      let senderUsername: string | null = null;
+      try {
+        const user = await getUserByClerkId(clerkId as string);
+        if (user && user.username) {
+          senderUsername = user.username;
+        }
+      } catch (e) {
+        senderUsername = clerkId ?? "Unknown";
+      }
+
       const pc = createPeerConnection();
       setPeerConnection(pc);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: "user", // Use "user" for front camera on mobile
-          width: { ideal: 1280 }, // Higher resolution width
-          height: { ideal: 720 }, // Higher resolution height
-          frameRate: { ideal: 30 }, // Higher frame rate
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
         },
         audio: true,
       });
@@ -93,14 +102,47 @@ export default function CallUsersComp() {
       setLocalStream(stream);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
+      // Set and play local video immediately after getting stream
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        let tries = 0;
+        const tryPlay = () => {
+          if (!localVideoRef.current) return;
+          localVideoRef.current
+            .play()
+            .catch(() => {
+              tries++;
+              if (tries < 10) setTimeout(tryPlay, 100);
+            });
+        };
+        tryPlay();
+      }
+
+      // --- Ensure the local video feed is set before proceeding ---
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.muted = true;
-        localVideoRef.current.play().catch((error) => {
+        // Wait for the video element to be ready and playing
+        let tries = 0;
+        while (
+          localVideoRef.current.srcObject !== stream ||
+          localVideoRef.current.readyState < 2 // HAVE_CURRENT_DATA
+        ) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((res) => setTimeout(res, 50));
+          tries++;
+          if (tries > 20) break; // Wait up to ~1s
+        }
+        try {
+          await localVideoRef.current.play();
+        } catch (error) {
           console.error("Error playing local video stream:", error);
           toast.error("Failed to play local video stream.");
-        });
+        }
       }
+      // -----------------------------------------------------------
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -109,17 +151,25 @@ export default function CallUsersComp() {
         offer,
         receiverId: targetClerkId,
         receiverUsername: targetUsername,
-        senderUsername: clerkId,
+        senderUsername: senderUsername ?? clerkId,
         senderId: clerkId,
       });
       toast.success(`Calling ${targetUsername}...`);
     } catch (err) {
       toast.error("Failed to start the call: " + (err as Error).message);
       console.error("Start call error:", err);
+      setIsCallerStartingCall(false); // Reset if call fails
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Reset isCallerStartingCall when call ends or is cancelled/rejected
+  useEffect(() => {
+    if (!callingUserId && isCallerStartingCall) {
+      setIsCallerStartingCall(false);
+    }
+  }, [callingUserId, isCallerStartingCall]);
 
   // Sync state with hook result on every reload and when offers change
   useEffect(() => {
@@ -136,6 +186,18 @@ export default function CallUsersComp() {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
+  };
+
+  // Send a signal to the other user that the call was rejected and remove from state/storage
+  const rejectCall = (call: { senderId: string; offer: RTCSessionDescriptionInit }) => {
+    // Notify remote user
+    sendSignal("call-rejected", {
+      senderId: clerkId,
+      receiverId: call.senderId,
+      offer: call.offer,
+    });
+    // Remove from local state and storage
+    removeOfferFromStorageAndState(call);
   };
 
   // Accept offer (callee side)
@@ -197,13 +259,12 @@ export default function CallUsersComp() {
 
     // Always use a new MediaStream for remote tracks
     const remoteStream = new MediaStream();
-    // setRemoteStream(remoteStreamObj);
+    setRemoteStream(remoteStream); // <-- ensure remoteStream state is set
 
     pc.ontrack = (event) => {
-      console.log("Track received:", event.track.kind); // Debug log for received track type
-      if (remoteVideoRef.current) {
+      // Only handle remote video if the video chat is active and the ref is present
+      if (showVideoChat && remoteVideoRef.current) {
         try {
-          // Add the track to the remote MediaStream
           if (remoteStream) {
             remoteStream.addTrack(event.track);
           } else {
@@ -211,8 +272,6 @@ export default function CallUsersComp() {
             toast.error("Remote stream is not initialized.");
             return;
           }
-
-          // Assign the MediaStream to the video element only once
           if (remoteVideoRef.current.srcObject !== remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
             if (remoteVideoRef.current.srcObject === remoteStream) {
@@ -221,15 +280,11 @@ export default function CallUsersComp() {
               console.error("Failed to set remote video element srcObject.");
               toast.error("Failed to set remote video element srcObject.");
             }
-          } else {
-            // Already set, but check if tracks are present
-            if (remoteStream.getTracks().length === 0) {
-              console.warn("Remote stream srcObject set but has no tracks.");
-              toast.warn("Remote stream has no tracks.");
-            }
           }
-
-          // Ensure the video plays
+          if (remoteStream.getTracks().length === 0) {
+            console.warn("Remote stream srcObject set but has no tracks.");
+            toast.warn("Remote stream has no tracks.");
+          }
           remoteVideoRef.current
             .play()
             .then(() => console.log("Remote video stream playing"))
@@ -242,8 +297,10 @@ export default function CallUsersComp() {
           toast.error("Failed to display remote video stream.");
         }
       } else {
-        console.error("remoteVideoRef.current is null in ontrack handler.");
-        toast.error("Remote video element not found.");
+        // If not ready, just add the track to the remoteStream, UI will handle rendering
+        if (remoteStream) {
+          remoteStream.addTrack(event.track);
+        }
       }
     };
 
@@ -350,7 +407,8 @@ export default function CallUsersComp() {
 
       // Call-ended event
       const handleCallEnded = (data: any) => {
-        if (data.senderId === clientId.current) return;
+        // Only process if this client is the intended receiver
+        if (data.receiverId !== clerkId) return;
         toast.info("The other user ended the call.");
         // Stop all media and cleanup for the remote user as well
         stopMediaAndCleanup();
@@ -379,6 +437,36 @@ export default function CallUsersComp() {
       localStream,
     ]
   );
+
+  // Listen for call-rejected signal and end call if received
+  useEffect(() => {
+    if (!peerConnection && !callingUserId) return;
+
+    const clientId = { current: clerkId };
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+      forceTLS: true,
+    });
+    const channel = pusher.subscribe("webrtc-vchat");
+
+    const handleCallRejected = (data: any) => {
+      // Only act if this client is the caller and the call was rejected
+      if (data.receiverId === clientId.current) {
+        toast.info("Call was rejected by the other user.");
+        stopMediaAndCleanup();
+      }
+    };
+
+    channel.bind("call-rejected", handleCallRejected);
+
+    return () => {
+      channel.unbind("call-rejected", handleCallRejected);
+      channel.unsubscribe();
+      if (pusher.connection.state === "connected") {
+        pusher.disconnect();
+      }
+    };
+  }, [peerConnection, callingUserId, clerkId]);
 
   // Stop all media and cleanup function (for both local and remote user)
   const stopMediaAndCleanup = async () => {
@@ -455,6 +543,7 @@ export default function CallUsersComp() {
       setCallActive(false);
       setCallAnswered(false);
       setCallingUserId(null);
+      setIsCallerStartingCall(false);
     } catch (err) {
       toast.error("Error during cleanup.");
     }
@@ -463,8 +552,16 @@ export default function CallUsersComp() {
   // End call for both clients (local user)
   const endCall = async () => {
     try {
-      sendSignal("call-ended", {});
+      if (callingUserId) {
+        sendSignal("call-ended", { receiverId: callingUserId });
+      }
+      // Clear local video element srcObject immediately
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
       await stopMediaAndCleanup();
+      // DO NOT clear incomingCalls or offers here!
+      // Only end the current call, do not affect other incoming calls
     } catch {
       toast.error("Error ending call.");
     }
@@ -480,6 +577,10 @@ export default function CallUsersComp() {
         senderId: offerData.senderId,
         offer: offerData.offer,
       });
+      // Clear local video element srcObject immediately
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
       // Stop all local media and cleanup
       if (localVideoRef.current && localVideoRef.current.srcObject) {
         const tracks = (
@@ -538,6 +639,7 @@ export default function CallUsersComp() {
     incomingCalls,
     isLoading: callIsLoading,
     acceptOffer,
+    rejectCall, // use the new rejectCall function
     localVideoRef: callLocalVideoRef,
   };
 
@@ -550,26 +652,38 @@ export default function CallUsersComp() {
     );
   if (usersError) return <div className="text-red-500">{usersError}</div>;
 
+  // For the callee, showVideoChat is set to true only after answer is received
+  // For the caller, hide lists as soon as startCall is invoked (isCallerStartingCall)
+  const shouldShowVideoChat = showVideoChat || isCallerStartingCall;
+
   return (
-    <div className="mt-[3.5rem] flex flex-col md:flex-row items-start w-full">
+    <div className="mt-[4rem] flex flex-col md:flex-row items-start justify-center w-full h-fit">
       {/* Left side: UserList and CallList as their own accordions */}
-      {!showVideoChat ? (
-        <div className="h-fit flex flex-col w-full md:w-1/2 lg:w-1/3">
-          <UserList {...userListProps} />
-          <CallList {...callListProps} />
+      {!shouldShowVideoChat && (
+        <div className="flex flex-col items-center justify-center w-full md:w-1/2 max-w-2xl">
+          <div className="w-full md:w-[32rem]">
+            <UserList {...userListProps} />
+            <CallList {...callListProps} />
+          </div>
         </div>
-      ) : null}
-      {/* Right side: VideoChatCompNew - always rendered */}
-      <div className="bg-yellow-400 w-full md:w-1/2 lg:w-2/3 min-h-[300px] flex items-center justify-center">
-        <VideoChatCompNew
-          localVideoRef={localVideoRef}
-          remoteVideoRef={remoteVideoRef}
-          localStream={localStream}
-          remoteStream={remoteStream}
-          peerConnection={peerConnection}
-          endCall={endCall}
-          // Add any other props you need to pass
-        />
+      )}
+      {/* Right side: VideoChatCompNew - only rendered when call is started */}
+      <div
+        className={`bg-yellow-400 w-full md:w-1/2 lg:w-2/3 min-h-[300px] flex items-center justify-center transition-all duration-300 ${
+          shouldShowVideoChat ? "block" : "hidden"
+        }`}
+      >
+        {shouldShowVideoChat && (
+          <VideoChatCompNew
+            localVideoRef={localVideoRef}
+            remoteVideoRef={remoteVideoRef}
+            localStream={localStream}
+            remoteStream={remoteStream}
+            peerConnection={peerConnection}
+            endCall={endCall}
+            // Add any other props you need to pass
+          />
+        )}
       </div>
     </div>
   );
